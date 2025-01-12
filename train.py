@@ -1,15 +1,17 @@
 from AnimeGAN import Trainer
 import argparse
 
-DATA_SET = "ChinaPhoto"
-BATCH_SIZE = 8
-EPOCH = 30
+DATA_SET = "realistic_cartoon"
+BATCH_SIZE = 4
+EPOCH = 50
 START_EPOCH = 1
-INIT_G_EPOCH = 10
+INIT_G_EPOCH = 4
 INIT_G_LR = 2e-4
 G_LR = 1e-4
 D_LR = 1e-4
 DEVICE = "cpu"
+IMAGE_SIZE = 640
+OUT_DIR = "./realistic_cartoon_outputs"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="AnimeGANv3")
@@ -23,6 +25,8 @@ def parse_args():
     parser.add_argument('--g_lr', type=float, default=G_LR, help='The learning rate')
     parser.add_argument('--d_lr', type=float, default=D_LR, help='The learning rate')
     parser.add_argument('--device', type=str, default=DEVICE, help="CPU or CUDA")
+    parser.add_argument('--img_size', type=int, default=IMAGE_SIZE, help="image size")
+    parser.add_argument('--out_dir', type=str, default=OUT_DIR, help="output dir")
 
     return parser.parse_args()
 
@@ -37,6 +41,8 @@ if __name__ == "__main__":
         init_lr_g=args.init_G_lr,
         lr_g=args.g_lr,
         lr_d=args.d_lr,
-        device=args.device
+        device=args.device,
+        img_size=args.img_size,
+        out_dir=args.out_dir,
     )
     trainer.train()

@@ -17,8 +17,9 @@ def get_simple_superpixel_improve(image_path, seg_num=200):
     return image
 
 
-def get_superPixel (image_path):
+def get_superPixel (image_path, img_size=(256, 256)):
     img = cv2.imread(image_path)
+    img = cv2.resize(img, img_size)
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     # rgb = cv2.resize(rgb, (256,256))
     # img_seg = segmentation.felzenszwalb(rgb, scale=5, sigma=0.8, min_size=100) # photo_superpixel

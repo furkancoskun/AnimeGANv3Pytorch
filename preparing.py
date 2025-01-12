@@ -41,21 +41,21 @@ def gen_salt_noise(dataSet: str):
         S = sp_noise(img, 0.1)
         cv2.imwrite(opj(out_foder,x),S)
 
-def visual_super_seg():
-    temp = './dataset/seg_train_5-0.8-50'
+def visual_super_segg():
+    temp = './dataset/superpixel'
     # temp = '../dataset/seg_slic_train_1000'
     check_folder(temp)
     # image_foder = '../dataset/val'
     # image_foder = '../dataset/Hayao/style'
     image_foder = './dataset/train_photo'
 
-    for i, x in enumerate(os.listdir(image_foder)):
-        print(i, x)
+    for i, x in enumerate(tqdm(os.listdir(image_foder))):
+        # print(i, x)
         # if x != '2013-11-10 12_45_41.jpg':
         # if x != '4.jpg':
         #     continue
         path = os.path.join(image_foder,x)
-        img = get_superPixel(path)
+        img = get_superPixel(path,img_size=(640, 640))
         # img = get_simple_superpixel_improve(path, 1000)
         cv2.imwrite(os.path.join(temp,x), cv2.cvtColor(img.astype(np.uint8),cv2.COLOR_RGB2BGR))
         # cv2.imshow('super_seg',cv2.cvtColor(img.astype(np.uint8),cv2.COLOR_RGB2BGR))
@@ -65,7 +65,7 @@ def main():
     args = parse_args()
     edge_smooth_func(args=args)
     gen_salt_noise(args.dataset)
-    visual_super_seg()
+    visual_super_segg()
 
 if __name__ == "__main__":
     main()

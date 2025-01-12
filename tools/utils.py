@@ -38,13 +38,13 @@ def save_images(images, image_path):
     fake = inverse_transform(images.squeeze())
     return imsave(fake, image_path)
 
-def inverse_transform(images):
-    images = (images + 1.) / 2 * 255
-    # The calculation of floating-point numbers is inaccurate, 
-    # and the range of pixel values must be limited to the boundary, 
-    # otherwise, image distortion or artifacts will appear during display.
-    images = np.clip(images, 0, 255)
-    return images.astype(np.uint8)
+def inverse_transform(image):
+    image = (image + 1.) / 2 * 255
+    image = image.transpose((1, 2, 0))
+    image = np.clip(image, 0, 255)
+    image = image.astype(np.uint8)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return image
 
 
 def imsave(images, path):

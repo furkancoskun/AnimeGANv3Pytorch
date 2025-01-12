@@ -8,7 +8,7 @@ import cv2
 class ImageDataSet(Dataset):
     def __init__(self, img_dir: str, img_size=(256, 256), resize="resize") -> None:
         self.img_dir = img_dir
-        # self.img_size = img_size
+        self.img_size = img_size
         # self.resize = resize
 
         self.photo = 'train_photo'
@@ -29,8 +29,8 @@ class ImageDataSet(Dataset):
         self.init_data()
     
     def init_data(self):
-        # dataset_dir = "./dataset"
-        dataset_dir = "/kaggle/input/animegan/dataset"
+        dataset_dir = "./dataset"
+        # dataset_dir = "/kaggle/input/animegan/dataset"
         # dataset_dir = "/kaggle/input/animeganthe/dataset"
         # train photo
         train_dir = f"{dataset_dir}/train_photo"
@@ -64,15 +64,18 @@ class ImageDataSet(Dataset):
         if 'style' in path or 'smooth' in path:
             # color image1
             image = cv2.imread(path)
+            image = cv2.resize(image, self.img_size)
             image1 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
 
             image2 = np.zeros(image1.shape).astype(np.float32)
         else:
             # real photo
             image = cv2.imread(path)
+            image = cv2.resize(image, self.img_size)
             image1 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
             # Color segmentation (ie. region smooth) photo
-            image = cv2.imread(path.replace('train_photo', "seg_train_5-0.8-50"))
+            image = cv2.imread(path.replace('train_photo', "superpixel"))
+            image = cv2.resize(image, self.img_size)
             image2 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
         image1 = image1.transpose((2, 0, 1))
         image2 = image2.transpose((2, 0, 1))

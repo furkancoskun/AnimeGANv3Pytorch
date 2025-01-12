@@ -110,9 +110,8 @@ class RBConvLeadeRelu(nn.Module):
 
 class GeneratorV3(nn.Module):
     '''生成器 DTGAN'''
-    def __init__(self, dataset="") -> None:
+    def __init__(self) -> None:
         super(GeneratorV3, self).__init__()
-        self.name = f"{self.__class__.__name__}_{dataset}"
 
         # header
         self.header_first = ConLadeLRelu(3, 32, 7, 1)
@@ -238,7 +237,7 @@ if __name__ == "__main__":
     # dis = DiscrimeV3().to(device=dml)
     # y_s, y_m = model(input_val)
     # print(y_s.shape)
-    generate = GeneratorV3("")
+    generate = GeneratorV3()
     g_data = torch.load("./model_state/ChinaPhoto/generator.pth")
     generate.load_state_dict(g_data["model"])
     a = list(generate.children())

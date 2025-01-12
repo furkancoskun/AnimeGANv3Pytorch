@@ -13,10 +13,14 @@ import numpy as np
 from skimage import segmentation, color
 from joblib import Parallel, delayed
 from dataSet import ImageDataSet
-from tools.utils import check_folder
+from dataSet_test import ImageDataSetTest
+from tools.utils import check_folder, inverse_transform
 import cv2
 from time import time
 import math
+import os
+from tqdm import tqdm 
+import wandb
 
 def grayscale_to_rgb(input_tensor: Tensor) -> Tensor:
     if input_tensor.shape.__len__() == 4:
@@ -24,22 +28,26 @@ def grayscale_to_rgb(input_tensor: Tensor) -> Tensor:
     return input_tensor.expand((3, -1, -1))
 
 class Trainer:
-    def __init__(self, dataset="SummerWar", epoch=100, start_epoch=0, batch=4, init_g_epoch=10, init_lr_g=2e-4, lr_g=1e-4, lr_d=1e-4, device="cpu"):
+    def __init__(self, dataset="SummerWar", epoch=100, start_epoch=0, batch=4, init_g_epoch=10, init_lr_g=2e-4, lr_g=1e-4, lr_d=1e-4, device="cpu", img_size=640, out_dir="model_out"):
         super(Trainer, self).__init__()
         self.epoch = epoch
         # self.data_set_num = data_set_num
         self.batch = batch
         self.init_g_epoch = init_g_epoch
         self.device_type = device
-        self.data_dir = dataset
         self.start_epoch = start_epoch
+        self.out_dir = out_dir
+        self.img_size = img_size
 
-        self.G = GeneratorV3(dataset=dataset)
+        self.wandb_run = wandb.init(project="animeganv3", name=f"{dataset}_train")
+
+        self.G = GeneratorV3()
         self.D = DiscrimeV3()
         self.optimizer_init_g = optim.Adam(self.G.parameters(), lr=init_lr_g, betas=(0.5, 0.999))
         self.optimizer_g = optim.Adam(self.G.parameters(), lr=lr_g, betas=(0.5, 0.999))
         self.optimizer_d = optim.Adam(self.D.parameters(), lr=lr_d, betas=(0.5, 0.999))
-        self.data_set = ImageDataSet(dataset)
+        self.data_set = ImageDataSet(dataset, img_size=(img_size, img_size))
+        self.test_set = ImageDataSetTest("test", img_size=(img_size, img_size))
 
         self.load_model_data()
         self.model_to_device()
@@ -47,14 +55,23 @@ class Trainer:
     
     def save_model_data(self):
         '''保存模型数据'''
-        check_folder(f"./model_state/{self.data_dir}")
+        check_folder(f"{self.out_dir}/model_state")
         # G
-        torch.save({"model": self.G.to(device="cpu").state_dict()}, f"./model_state/{self.data_dir}/generator.pth")
+        torch.save({"model": self.G.to(device="cpu").state_dict()}, f"{self.out_dir}/model_state/generator.pth")
         # D
-        torch.save({"model": self.D.to(device="cpu").state_dict()}, f"./model_state/{self.data_dir}/discrime.pth")
+        torch.save({"model": self.D.to(device="cpu").state_dict()}, f"{self.out_dir}/model_state/discrime.pth")
         # 模型迁移回原设备
         self.model_to_device()
-    
+
+    def save_model_data_epoch(self, epoch:int):
+        check_folder(f"{self.out_dir}/{epoch}/model_state")
+        # G
+        torch.save({"model": self.G.to(device="cpu").state_dict()}, f"{self.out_dir}/{epoch}/model_state/generator.pth")
+        # D
+        torch.save({"model": self.D.to(device="cpu").state_dict()}, f"{self.out_dir}/{epoch}/model_state/discrime.pth")
+        # 模型迁移回原设备
+        self.model_to_device()
+
     def init_model_weight(self, m):
         # recommend
         if isinstance(m, nn.Conv2d): 
@@ -70,13 +87,13 @@ class Trainer:
     def load_model_data(self):
         # G
         try:
-            g_state = torch.load(f"./model_state/{self.data_dir}/generator.pth")
+            g_state = torch.load(f"{self.out_dir}/model_state/generator.pth")
             self.G.load_state_dict(g_state["model"])
         except Exception:
             self.init_model_weight(self.G)
         # D
         try:
-            d_state = torch.load(f"./model_state/{self.data_dir}/discrime.pth")
+            d_state = torch.load(f"{self.out_dir}/model_state/discrime.pth")
             self.D.load_state_dict(d_state["model"])
         except Exception:
             self.init_model_weight(self.D)
@@ -220,8 +237,9 @@ class Trainer:
     def train(self):
         '''训练模型'''
         for epo in range(self.start_epoch, self.epoch + 1):
+            print("Train epoch:", epo)
             # Steps of Every Epoch
-            data_loader = DataLoader(self.data_set, batch_size=self.batch, shuffle=False)
+            data_loader = DataLoader(self.data_set, batch_size=self.batch, num_workers=4, shuffle=False)
             step_length = data_loader.__len__()
             for (step, data_batch) in enumerate(data_loader):
                 start_time = time()
@@ -233,6 +251,7 @@ class Trainer:
                     g_loss_print = g_loss.to(device="cpu").data
                     step_time = time() - start_time
                     print(f"Epoch: {epo:3d}  Step: {step:4d}/{step_length}  Time: {int(step_time):4d} s  ETA: {int((step_length - step - 1)*step_time):6d} s  G-Loss: {g_loss_print:10f}")
+                    self.wandb_run.log({"Epoch": epo, "Step": step, "G-Loss": g_loss_print})
                 else:
                     photo_superpixel = self.get_seg(real_photo.detach().numpy())
                     g_loss, color_loss_p, g_adv_loss_p, con_loss_p, s22_p, s33_p, s44_p, rs_loss_p, tv_loss_p, g_m_loss_p,\
@@ -243,14 +262,43 @@ class Trainer:
                     step_time = time() - start_time
                     print(
                         f"Epoch:{epo:3d} Step:{step:4d}/{step_length} Time:{int(step_time):4d}s ETA:{int((step_length - step - 1)*step_time):6d}s\n\
-    G-Loss:{g_loss:.3f} C-Loss:{color_loss_p:.3f} G-ADV:{g_adv_loss_p:.3f} CON-Loss:{con_loss_p:.3f}\n\
-    S22:{s22_p:.3f} S33:{s33_p:.3f} S44:{s44_p:.3f} RS-Loss:{rs_loss_p:.3f} TV-Loss:{tv_loss_p:.3f}\n\
-    G-M-Loss:{g_m_loss_p:.3f} P0-Loss:{p0_loss_p:.3f} P4-Loss:{p4_loss_p:.3f} TV-M-Loss:{tv_loss_m_p:.3f}\n\
-    D-Loss:{d_loss:.4f} D-SuperPerixel:{d_sup_loss_p:.3f} D-Main-Loss:{d_main_loss_p:.3f}")
+                        G-Loss:{g_loss:.3f} C-Loss:{color_loss_p:.3f} G-ADV:{g_adv_loss_p:.3f} CON-Loss:{con_loss_p:.3f}\n\
+                        S22:{s22_p:.3f} S33:{s33_p:.3f} S44:{s44_p:.3f} RS-Loss:{rs_loss_p:.3f} TV-Loss:{tv_loss_p:.3f}\n\
+                        G-M-Loss:{g_m_loss_p:.3f} P0-Loss:{p0_loss_p:.3f} P4-Loss:{p4_loss_p:.3f} TV-M-Loss:{tv_loss_m_p:.3f}\n\
+                        D-Loss:{d_loss:.4f} D-SuperPerixel:{d_sup_loss_p:.3f} D-Main-Loss:{d_main_loss_p:.3f}")
+                    self.wandb_run.log({"Epoch": epo, "Step": step, "G-Loss": g_loss, "C-Loss": color_loss_p, "G-ADV": g_adv_loss_p, 
+                                        "CON-Loss": con_loss_p, "S22": s22_p, "S33": s33_p, "S44": s44_p, "RS-Loss": rs_loss_p,
+                                        "TV-Loss": tv_loss_p, "G-M-Loss": g_m_loss_p, "P0-Loss": p0_loss_p, "P4-Loss": p4_loss_p,
+                                        "TM-M-Loss": tv_loss_m_p, "D-Loss": d_loss, "D-SuperPerixel": d_sup_loss_p, "D-Main-Loss": d_main_loss_p})
+                    
                 if step % 50 == 0:
                     self.save_model_data()
-            self.save_model_data()
+            print("Save and Test epoch:", epo)
+            self.save_model_data_epoch(epo)
+            self.test_model(epo)
     
+    def test_model(self, epoch: int):
+        data_loader = DataLoader(self.test_set, batch_size=1, num_workers=2, shuffle=False)
+        self.G.eval()
+
+        save_dir = f"{self.out_dir}/{epoch}/test_result"
+        check_folder(save_dir)
+        resized_save_dir = f"{self.out_dir}/{epoch}/test_result_resized"
+        check_folder(resized_save_dir)
+        print("test_model epoch:", epoch)
+        for (_, data_batch) in tqdm(enumerate(data_loader)):
+            photo = data_batch["photo"]
+            orig_size = (data_batch["orig_size"][0].item(), data_batch["orig_size"][1].item())
+            im_name = str(data_batch["im_name"][0])
+
+            with torch.no_grad():
+                _, generated_m = self.G(photo.to(device=self.device_type))
+                generated_m_np = generated_m.to(device="cpu").detach().numpy()[0]
+                generated_m_np = inverse_transform(generated_m_np)
+                cv2.imwrite(os.path.join(save_dir, im_name), generated_m_np)
+                generated_m_np_resized = cv2.resize(generated_m_np, orig_size)
+                cv2.imwrite(os.path.join(resized_save_dir, im_name), generated_m_np_resized)
+
     def get_seg(self, batch_image):
         def get_superpixel(image):
             image = (image + 1.) * 127.5
