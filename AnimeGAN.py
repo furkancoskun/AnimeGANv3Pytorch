@@ -256,7 +256,7 @@ class Trainer:
                     photo_superpixel = self.get_seg(real_photo.detach().numpy())
                     g_loss, color_loss_p, g_adv_loss_p, con_loss_p, s22_p, s33_p, s44_p, rs_loss_p, tv_loss_p, g_m_loss_p,\
                     p0_loss_p, p4_loss_p, tv_loss_m_p, d_loss, d_sup_loss_p, \
-                    d_main_loss_p = self.update_g(real_photo, photo_superpixel, anime, anime_smooth, per_batch=4)
+                    d_main_loss_p = self.update_g(real_photo, photo_superpixel, anime, anime_smooth, per_batch=self.batch)
                     # g_loss_print = g_loss.to(device="cpu").data
                     # d_loss_print = d_loss.to(device="cpu").data
                     step_time = time() - start_time

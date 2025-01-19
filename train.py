@@ -2,15 +2,15 @@ from AnimeGAN import Trainer
 import argparse
 
 DATA_SET = "realistic_cartoon"
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 EPOCH = 50
 START_EPOCH = 1
-INIT_G_EPOCH = 4
+INIT_G_EPOCH = 5
 INIT_G_LR = 2e-4
 G_LR = 1e-4
 D_LR = 1e-4
-DEVICE = "cpu"
-IMAGE_SIZE = 640
+DEVICE = "cuda"
+IMAGE_SIZE = 512
 OUT_DIR = "./realistic_cartoon_outputs"
 
 def parse_args():
